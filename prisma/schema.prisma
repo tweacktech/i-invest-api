@@ -1,0 +1,439 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String        @id @default(cuid())
+  phoneNumber      String        @unique
+  passwordHash     String
+  displayName      String?
+  referralCode     String        @unique
+  referredByUserId String?
+  referredByUser   User?         @relation("UserReferrals", fields: [referredByUserId], references: [id])
+  referrals        User[]        @relation("UserReferrals")
+  vipTier          Int           @default(0)
+  kycStatus        KycStatus     @default(PENDING)
+  accountStatus    AccountStatus @default(ACTIVE)
+  wallet           Wallet?
+  sessions         UserSession[]
+  bankAccounts     UserBankAccount[]
+  securitySettings UserSecuritySettings?
+  rechargeRequests RechargeRequest[]
+  withdrawals      WithdrawalRequest[]
+  investments      Investment[]
+  taskProgress     DailyTaskProgress[]
+  taskCompletions  DailyTaskCompletion[]
+  announcementReads AnnouncementRead[]
+  welfarePayments  WelfarePayment[]
+  vipProgression   VIPProgression?
+  vipBenefitsEarned VIPBenefitEarned[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+model UserBankAccount {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountName    String
+  bankName       String
+  accountNumber  String
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  withdrawals WithdrawalRequest[]
+
+  @@index([userId])
+}
+
+model UserSecuritySettings {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  withdrawalPinHash String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Wallet {
+  id           String              @id @default(cuid())
+  userId       String              @unique
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  available    Decimal             @default(0) @db.Decimal(18, 2)
+  frozen       Decimal             @default(0) @db.Decimal(18, 2)
+  reserved     Decimal             @default(0) @db.Decimal(18, 2)
+  transactions WalletTransaction[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model WalletTransaction {
+  id              String          @id @default(cuid())
+  walletId        String
+  wallet          Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type            WalletTxnType
+  amount          Decimal         @db.Decimal(18, 2)
+  balanceBefore   Decimal         @db.Decimal(18, 2)
+  balanceAfter    Decimal         @db.Decimal(18, 2)
+  frozenBefore    Decimal         @default(0) @db.Decimal(18, 2)
+  frozenAfter     Decimal         @default(0) @db.Decimal(18, 2)
+  reservedBefore  Decimal         @default(0) @db.Decimal(18, 2)
+  reservedAfter   Decimal         @default(0) @db.Decimal(18, 2)
+  description     String?
+  referenceType   String?
+  referenceId     String?
+  createdAt       DateTime        @default(now())
+
+  @@index([walletId])
+  @@index([createdAt])
+}
+
+model InvestmentPackage {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  description        String?
+  imageUrl           String?
+  dailyYieldPercent  Decimal  @db.Decimal(8, 4)
+  maturityDays       Int      @default(90)
+  minAmount          Decimal  @db.Decimal(18, 2)
+  maxAmount          Decimal  @db.Decimal(18, 2)
+  price              Decimal  @db.Decimal(18, 2)
+  firstTimeBonus     Decimal  @default(0) @db.Decimal(18, 2)
+  isActive           Boolean  @default(true)
+  investments        Investment[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model Investment {
+  id                  String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packageId           String
+  package             InvestmentPackage @relation(fields: [packageId], references: [id])
+  principalAmount     Decimal           @db.Decimal(18, 2)
+  dailyYieldPercent   Decimal           @db.Decimal(8, 4)
+  status              InvestmentStatus  @default(ACTIVE)
+  startDate           DateTime          @default(now())
+  maturityDate        DateTime
+  totalInterestAccrued Decimal          @default(0) @db.Decimal(18, 2)
+  daysElapsed         Int               @default(0)
+  nextInterestDate    DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model RechargeRequest {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount            Decimal         @db.Decimal(18, 2)
+  channel           RechargeChannel
+  status            RechargeStatus  @default(PENDING)
+  note              String?
+  depositMethodId   String?
+  depositMethod     DepositMethod?  @relation(fields: [depositMethodId], references: [id])
+  transferNarration String?         @unique
+  expiresAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model PlatformSettings {
+  id                                  String   @id
+  maintenanceMode                     Boolean  @default(false)
+  maintenanceMessage                  String?
+  rechargeTimeoutMinutes              Int      @default(30)
+  welfareEnabled                      Boolean  @default(false)
+  welfareWeeklyPrice                  Decimal  @default(0) @db.Decimal(18, 2)
+  welfareHolidayDates                 String[] @default([])
+  welcomeMessage                      String?
+  urgentAdminNote                     String?
+  requireActiveInvestmentForWithdrawal Boolean @default(true)
+  updatedAt                           DateTime @updatedAt
+}
+
+model WelfarePayment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart DateTime @db.Date
+  amount    Decimal  @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, weekStart])
+  @@index([userId])
+}
+
+model DepositMethod {
+  id             String            @id @default(cuid())
+  code           String            @unique
+  label          String
+  bankName       String
+  accountName    String
+  accountNumber  String
+  isEnabled      Boolean           @default(true)
+  sortOrder      Int               @default(0)
+  recharges      RechargeRequest[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model CatalogBank {
+  id        String   @id @default(cuid())
+  name      String
+  bankCode  String?
+  isEnabled Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isEnabled])
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model WithdrawalRequest {
+  id             String             @id @default(cuid())
+  userId         String
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccountId  String
+  bankAccount    UserBankAccount    @relation(fields: [bankAccountId], references: [id])
+  amount         Decimal            @db.Decimal(18, 2)
+  status         WithdrawalStatus   @default(PENDING)
+  adminNote      String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model DailyTask {
+  id            String                @id @default(cuid())
+  title         String
+  youtubeUrl    String
+  watchSeconds  Int
+  rewardAmount  Decimal               @db.Decimal(18, 2)
+  sortOrder     Int                   @default(0)
+  isActive      Boolean               @default(true)
+  progress      DailyTaskProgress[]
+  completions   DailyTaskCompletion[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([isActive])
+}
+
+model DailyTaskProgress {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId    String
+  task      DailyTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  startedAt DateTime @default(now())
+
+  @@unique([userId, taskId])
+  @@index([taskId])
+}
+
+model DailyTaskCompletion {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId       String
+  task         DailyTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  rewardAmount Decimal   @db.Decimal(18, 2)
+  completedFor DateTime  @db.Date
+  createdAt    DateTime  @default(now())
+
+  @@unique([userId, taskId, completedFor])
+  @@index([userId])
+}
+
+model Announcement {
+  id        String               @id @default(cuid())
+  title     String
+  body      String
+  isActive  Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  reads     AnnouncementRead[]
+
+  @@index([isActive, createdAt])
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  readAt         DateTime     @default(now())
+
+  @@unique([userId, announcementId])
+  @@index([userId])
+}
+
+model VIPLevel {
+  id                    String    @id @default(cuid())
+  
+  level                 Int       @unique // 0-8
+  levelName             String
+  levelDescription      String?
+  
+  minInvestmentRequired Decimal   @default(0) @db.Decimal(18, 2)
+  minTeamMembers        Int       @default(0)
+  minCommissionEarned   Decimal   @default(0) @db.Decimal(18, 2)
+  
+  dividendRate          Decimal   @default(0) @db.Decimal(5, 2)
+  weeklySalary          Decimal   @default(0) @db.Decimal(18, 2)
+  
+  membersUnlockCount    Int       @default(0)
+  maxWithdrawalPercent  Decimal   @default(100) @db.Decimal(5, 2)
+  
+  isActive              Boolean   @default(true)
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("vip_levels")
+}
+
+model VIPProgression {
+  id                    String    @id @default(cuid())
+  
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  currentVipLevel       Int       @default(0)
+  
+  investmentProgress    Decimal   @default(0) @db.Decimal(18, 2)
+  investmentTarget      Decimal   @default(0) @db.Decimal(18, 2)
+  
+  teamMembersProgress   Int       @default(0)
+  teamMembersTarget     Int       @default(0)
+  
+  commissionProgress    Decimal   @default(0) @db.Decimal(18, 2)
+  commissionTarget      Decimal   @default(0) @db.Decimal(18, 2)
+  
+  levelsCompleted       Int       @default(0)
+  levelsCompletedAt     DateTime[]
+  
+  eligibleForPromotionAt DateTime?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("vip_progression")
+}
+
+model VIPBenefitEarned {
+  id                    String    @id @default(cuid())
+  
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vipLevel              Int
+  
+  benefitType           String    // dividend, weekly_salary, member_unlock, bonus
+  
+  benefitAmount         Decimal   @db.Decimal(18, 2)
+  benefitPercentage     Decimal?  @db.Decimal(5, 2)
+  
+  earnedFromDate        DateTime?
+  earnedToDate          DateTime?
+  
+  status                String    @default("active") // active, expired, claimed
+  claimedAt             DateTime?
+  claimedToAccountId    String?
+  
+  createdAt             DateTime  @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@map("vip_benefits_earned")
+}
+
+enum KycStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum WalletTxnType {
+  DEPOSIT
+  WITHDRAWAL
+  INVESTMENT_PURCHASE
+  INTEREST_ACCRUAL
+  INVESTMENT_MATURITY
+  COMMISSION
+  WELFARE_FEE
+  TASK_REWARD
+  RESERVE_FOR_WITHDRAWAL
+  RELEASE_WITHDRAWAL_RESERVE
+}
+
+enum InvestmentStatus {
+  ACTIVE
+  MATURED
+  CLOSED
+}
+
+enum RechargeChannel {
+  GATEWAY_A
+  GATEWAY_B
+  GATEWAY_D
+  MANUAL
+}
+
+enum RechargeStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+  EXPIRED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
