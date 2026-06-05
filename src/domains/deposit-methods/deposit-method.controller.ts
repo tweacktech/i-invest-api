@@ -9,16 +9,19 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { CatalogBankService } from './catalog-bank.service';
-import { CreateCatalogBankDto, ReorderCatalogBankDto, UpdateCatalogBankDto } from './dto/catalog-bank.dto';
+import { DepositMethodService } from './deposit-method.service';
+import {
+  CreateDepositMethodDto,
+  ReorderDepositMethodDto,
+  UpdateDepositMethodDto,
+} from './dto/deposit-method.dto';
 import { JwtGuard } from '../auth/jwt.guard';
-// import { AdminGuard } from '../auth/admin.guard'; // uncomment if you have role guard
 
-@Controller('catalog-banks')
-export class CatalogBankController {
-  constructor(private readonly service: CatalogBankService) {}
+@Controller('deposit-methods')
+export class DepositMethodController {
+  constructor(private readonly service: DepositMethodService) {}
 
-  /** Public — used by frontend dropdowns (enabled only) */
+  /** Public — used by recharge page dropdowns (enabled only) */
   @Get('public')
   listPublic() {
     return this.service.findAll(true);
@@ -39,13 +42,13 @@ export class CatalogBankController {
 
   @UseGuards(JwtGuard)
   @Post()
-  create(@Body() dto: CreateCatalogBankDto) {
+  create(@Body() dto: CreateDepositMethodDto) {
     return this.service.create(dto);
   }
 
   @UseGuards(JwtGuard)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateCatalogBankDto) {
+  update(@Param('id') id: string, @Body() dto: UpdateDepositMethodDto) {
     return this.service.update(id, dto);
   }
 
@@ -57,7 +60,7 @@ export class CatalogBankController {
 
   @UseGuards(JwtGuard)
   @Post('reorder')
-  reorder(@Body() items: ReorderCatalogBankDto[]) {
+  reorder(@Body() items: ReorderDepositMethodDto[]) {
     return this.service.reorder(items);
   }
 

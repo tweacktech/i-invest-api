@@ -1,12 +1,20 @@
 import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
-export class CreateCatalogBankDto {
+export class CreateDepositMethodDto {
   @IsString()
-  name: string;
+  code: string;
 
-  @IsOptional()
   @IsString()
-  bankCode?: string;
+  label: string;
+
+  @IsString()
+  bankName: string;
+
+  @IsString()
+  accountName: string;
+
+  @IsString()
+  accountNumber: string;
 
   @IsOptional()
   @IsBoolean()
@@ -18,14 +26,26 @@ export class CreateCatalogBankDto {
   sortOrder?: number;
 }
 
-export class UpdateCatalogBankDto {
+export class UpdateDepositMethodDto {
   @IsOptional()
   @IsString()
-  name?: string;
+  code?: string;
 
   @IsOptional()
   @IsString()
-  bankCode?: string;
+  label?: string;
+
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  accountName?: string;
+
+  @IsOptional()
+  @IsString()
+  accountNumber?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -37,7 +57,7 @@ export class UpdateCatalogBankDto {
   sortOrder?: number;
 }
 
-export class ReorderCatalogBankDto {
+export class ReorderDepositMethodDto {
   @IsString()
   id: string;
 

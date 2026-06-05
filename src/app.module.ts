@@ -19,6 +19,7 @@ import { MaintenanceMiddleware } from './domains/platform/maintenance.middleware
 import { ApiKeyMiddleware } from './shared/middleware/api-key.middleware';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { DepositMethodModule } from './domains/deposit-methods/deposit-method.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AppService } from './app.service';
     ReferralModule,
     WelfareModule,
     VipModule,
+    DepositMethodModule,
   ],
   controllers: [AppController],
   providers: [AppService, MaintenanceMiddleware, ApiKeyMiddleware],
