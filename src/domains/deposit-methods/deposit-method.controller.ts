@@ -21,7 +21,7 @@ import { JwtGuard } from '../auth/jwt.guard';
 export class DepositMethodController {
   constructor(private readonly service: DepositMethodService) {}
 
-  /** Public — used by recharge page dropdowns (enabled only) */
+  /** Public — for recharge page dropdowns (no auth) */
   @Get('public')
   listPublic() {
     return this.service.findAll(true);
@@ -32,6 +32,13 @@ export class DepositMethodController {
   @Get()
   findAll(@Query('enabledOnly') enabledOnly?: string) {
     return this.service.findAll(enabledOnly === 'true');
+  }
+
+  /** Must be before :id routes */
+  @UseGuards(JwtGuard)
+  @Post('reorder')
+  reorder(@Body() items: ReorderDepositMethodDto[]) {
+    return this.service.reorder(items);
   }
 
   @UseGuards(JwtGuard)
@@ -55,13 +62,8 @@ export class DepositMethodController {
   @UseGuards(JwtGuard)
   @Patch(':id/toggle')
   toggle(@Param('id') id: string) {
+    console.log('yess');
     return this.service.toggleEnabled(id);
-  }
-
-  @UseGuards(JwtGuard)
-  @Post('reorder')
-  reorder(@Body() items: ReorderDepositMethodDto[]) {
-    return this.service.reorder(items);
   }
 
   @UseGuards(JwtGuard)
