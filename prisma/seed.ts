@@ -13,36 +13,107 @@ const pool = new Pool({ connectionString });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 async function main() {
-  const demoPass = await hash('Admin@123', 10);
-  const demoUser = await prisma.user.upsert({
-    where: { phoneNumber: '+2348000000001' },
-    update: {},
-    create: {
+  console.log('🌱 Starting database seeding...');
+
+  // ========== USERS (2 demo users) ==========
+  const users = [
+    {
       phoneNumber: '+2348000000001',
-      passwordHash: demoPass,
+      password: 'Admin@123',
       referralCode: 'SEEDUSR1',
-      kycStatus: 'VERIFIED',
+      fullName: 'Demo User One',
+      email: 'user1@demo.com',
     },
-  });
+    {
+      phoneNumber: '+2348000000002',
+      password: 'Admin@123',
+      referralCode: 'SEEDUSR2',
+      fullName: 'Demo User Two',
+      email: 'user2@demo.com',
+    },
+  ];
 
-  await prisma.wallet.upsert({
-    where: { userId: demoUser.id },
-    update: {},
-    create: { userId: demoUser.id },
-  });
+  const createdUsers = [];
+  for (const userData of users) {
+    const hashedPassword = await hash(userData.password, 10);
+    const user = await prisma.user.upsert({
+      where: { phoneNumber: userData.phoneNumber },
+      update: {
+        passwordHash: hashedPassword,
+        fullName: userData.fullName,
+        email: userData.email,
+      },
+      create: {
+        phoneNumber: userData.phoneNumber,
+        passwordHash: hashedPassword,
+        referralCode: userData.referralCode,
+        fullName: userData.fullName,
+        email: userData.email,
+        kycStatus: 'VERIFIED',
+        isActive: true,
+      },
+    });
+    createdUsers.push(user);
+    console.log(`✅ User created: ${user.phoneNumber} (${user.fullName})`);
+  }
 
-  const staffHash = await hash('Admin@123', 10);
-  await prisma.admin.upsert({
-    where: { email: 'admin@i-invest.dev' },
-    update: { passwordHash: staffHash, isActive: true },
-    create: {
+  // ========== WALLETS for each user ==========
+  for (const user of createdUsers) {
+    await prisma.wallet.upsert({
+      where: { userId: user.id },
+      update: {},
+      create: {
+        userId: user.id,
+        balance: '10000', // Initial balance for demo
+        bonusBalance: '0',
+        totalDeposited: '0',
+        totalWithdrawn: '0',
+        totalEarned: '0',
+      },
+    });
+    console.log(`✅ Wallet created for: ${user.phoneNumber}`);
+  }
+
+  // ========== ADMINS (2 staff admins) ==========
+  const admins = [
+    {
       email: 'admin@i-invest.dev',
-      passwordHash: staffHash,
-      name: 'Platform Admin',
+      password: 'Admin@123',
+      name: 'Super Admin',
+      role: 'SUPER_ADMIN',
       isActive: true,
     },
-  });
+    {
+      email: 'staff@i-invest.dev',
+      password: 'Staff@123',
+      name: 'Support Staff',
+      role: 'STAFF',
+      isActive: true,
+    },
+  ];
 
+  for (const adminData of admins) {
+    const hashedPassword = await hash(adminData.password, 10);
+    await prisma.admin.upsert({
+      where: { email: adminData.email },
+      update: {
+        passwordHash: hashedPassword,
+        name: adminData.name,
+        role: adminData.role,
+        isActive: adminData.isActive,
+      },
+      create: {
+        email: adminData.email,
+        passwordHash: hashedPassword,
+        name: adminData.name,
+        role: adminData.role,
+        isActive: adminData.isActive,
+      },
+    });
+    console.log(`✅ Admin created: ${adminData.email} (${adminData.role})`);
+  }
+
+  // ========== PLATFORM SETTINGS ==========
   await prisma.platformSettings.upsert({
     where: { id: 'platform' },
     update: {
@@ -56,7 +127,9 @@ async function main() {
       urgentAdminNote: null,
     },
   });
+  console.log('✅ Platform settings configured');
 
+  // ========== DEPOSIT METHODS ==========
   const methods: Array<{
     code: string;
     label: string;
@@ -69,7 +142,7 @@ async function main() {
       code: 'A',
       label: 'Transfer account A',
       bankName: 'PAGA',
-      accountName: 'I‑INVEST LTD',
+      accountName: 'I-INVEST LTD',
       accountNumber: '0123456781',
       sortOrder: 0,
     },
@@ -77,7 +150,7 @@ async function main() {
       code: 'B',
       label: 'Transfer account B',
       bankName: 'Moniepoint',
-      accountName: 'I‑INVEST LTD',
+      accountName: 'I-INVEST LTD',
       accountNumber: '0123456782',
       sortOrder: 1,
     },
@@ -97,8 +170,15 @@ async function main() {
       create: { ...m, isEnabled: true },
     });
   }
+  console.log('✅ Deposit methods configured');
 
-  const banks = ['Access Bank', 'GTBank', 'Zenith Bank', 'First Bank', 'UBA', 'Fidelity Bank','Opay','Moniepoint','PAGA'];
+  // ========== CATALOG BANKS ==========
+  const banks = [
+    'Access Bank', 'GTBank', 'Zenith Bank', 'First Bank', 'UBA', 
+    'Fidelity Bank', 'Opay', 'Moniepoint', 'PAGA', 'Kuda Bank',
+    'Sterling Bank', 'Union Bank', 'Wema Bank', 'Polaris Bank',
+    'Jaiz Bank', 'FCMB', 'Providus Bank', 'Titan Trust Bank'
+  ];
   let sort = 0;
   for (const name of banks) {
     const id = `seed-bank-${name.toLowerCase().replace(/\s+/g, '-')}`;
@@ -109,7 +189,9 @@ async function main() {
     });
     sort += 1;
   }
+  console.log(`✅ ${banks.length} catalog banks configured`);
 
+  // ========== INVESTMENT PACKAGES ==========
   const pkgs = [
     {
       name: 'Smart Start',
@@ -196,11 +278,11 @@ async function main() {
       },
     });
   }
+  console.log(`✅ ${pkgs.length} investment packages configured`);
 
-  await prisma.dailyTask.upsert({
-    where: { id: 'seed-youtube-task' },
-    update: {},
-    create: {
+  // ========== DAILY TASKS ==========
+  const tasks = [
+    {
       id: 'seed-youtube-task',
       title: 'Watch welcome video',
       youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
@@ -209,8 +291,27 @@ async function main() {
       sortOrder: 0,
       isActive: true,
     },
-  });
+    {
+      id: 'seed-follow-instagram',
+      title: 'Follow us on Instagram',
+      youtubeUrl: null,
+      watchSeconds: 0,
+      rewardAmount: '30',
+      sortOrder: 1,
+      isActive: true,
+    },
+  ];
 
+  for (const task of tasks) {
+    await prisma.dailyTask.upsert({
+      where: { id: task.id },
+      update: task,
+      create: task,
+    });
+  }
+  console.log(`✅ ${tasks.length} daily tasks configured`);
+
+  // ========== VIP LEVELS ==========
   const vipDefs = [
     { level: 0, levelName: 'Member', minInvestmentRequired: '0', minTeamMembers: 0, minCommissionEarned: '0', dividendRate: '0', weeklySalary: '0', membersUnlockCount: 0, maxWithdrawalPercent: '100' },
     { level: 1, levelName: 'Bronze', minInvestmentRequired: '50000', minTeamMembers: 3, minCommissionEarned: '5000', dividendRate: '1', weeklySalary: '2000', membersUnlockCount: 5, maxWithdrawalPercent: '30' },
@@ -222,6 +323,7 @@ async function main() {
     { level: 7, levelName: 'Imperial', minInvestmentRequired: '6000000', minTeamMembers: 90, minCommissionEarned: '1000000', dividendRate: '8', weeklySalary: '120000', membersUnlockCount: 100, maxWithdrawalPercent: '90' },
     { level: 8, levelName: 'Legend', minInvestmentRequired: '12000000', minTeamMembers: 120, minCommissionEarned: '2500000', dividendRate: '10', weeklySalary: '200000', membersUnlockCount: 150, maxWithdrawalPercent: '100' },
   ];
+  
   for (const v of vipDefs) {
     await prisma.vIPLevel.upsert({
       where: { level: v.level },
@@ -233,19 +335,25 @@ async function main() {
       },
     });
   }
+  console.log(`✅ ${vipDefs.length} VIP levels configured`);
 
-  await prisma.vIPProgression.upsert({
-    where: { userId: demoUser.id },
-    update: {},
-    create: {
-      userId: demoUser.id,
-      currentVipLevel: 0,
-      investmentTarget: '50000',
-      teamMembersTarget: 3,
-      commissionTarget: '5000',
-    },
-  });
+  // ========== VIP PROGRESSION for each user ==========
+  for (const user of createdUsers) {
+    await prisma.vIPProgression.upsert({
+      where: { userId: user.id },
+      update: {},
+      create: {
+        userId: user.id,
+        currentVipLevel: 0,
+        investmentTarget: '50000',
+        teamMembersTarget: 3,
+        commissionTarget: '5000',
+      },
+    });
+  }
+  console.log(`✅ VIP progression set for ${createdUsers.length} users`);
 
+  // ========== ANNOUNCEMENT ==========
   await prisma.announcement.upsert({
     where: { id: 'seed-welcome-announcement' },
     update: {},
@@ -256,15 +364,32 @@ async function main() {
       isActive: true,
     },
   });
+  console.log('✅ Welcome announcement created');
 
-  console.log('Seed OK');
-  console.log('  Demo user: +2348000000001 / Admin@123');
-  console.log('  Staff admin: admin@i-invest.dev / Admin@123  (use /staff/login)');
+  // ========== SUMMARY ==========
+  console.log('\n' + '='.repeat(50));
+  console.log('✅ SEEDING COMPLETED SUCCESSFULLY');
+  console.log('='.repeat(50));
+  console.log('\n📋 DEMO USERS:');
+  for (const user of users) {
+    console.log(`   • Phone: ${user.phoneNumber} / Password: ${user.password}`);
+    console.log(`     Name: ${user.fullName}`);
+  }
+  console.log('\n👥 ADMINS:');
+  for (const admin of admins) {
+    console.log(`   • Email: ${admin.email} / Password: ${admin.password}`);
+    console.log(`     Role: ${admin.role}`);
+  }
+  console.log('\n🔗 URLs:');
+  console.log('   • User app: http://localhost:3000');
+  console.log('   • Admin login: http://localhost:3000/admin/login');
+  console.log('   • Staff login: http://localhost:3000/staff/login');
+  console.log('\n' + '='.repeat(50));
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('❌ Seeding failed:', e);
     process.exit(1);
   })
   .finally(async () => {
