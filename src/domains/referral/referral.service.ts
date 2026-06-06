@@ -5,8 +5,8 @@ import { WalletService } from '../wallet/wallet.service';
 import { VipService } from '../vip/vip.service';
 
 const COMMISSION_TIERS = [
-  { level: 1, percent: 20 },
-  { level: 2, percent: 3 },
+  { level: 1, percent: 3 },
+  { level: 2, percent: 2.5 },
   { level: 3, percent: 2 },
 ] as const;
 
@@ -204,8 +204,8 @@ export class ReferralService {
 
     return {
       levels: [
-        { level: 1, ratePercent: 20, members: level1.map((u) => mapMember(u, 1)) },
-        { level: 2, ratePercent: 3, members: level2.map((u) => mapMember(u, 2)) },
+        { level: 1, ratePercent: 3, members: level1.map((u) => mapMember(u, 1)) },
+        { level: 2, ratePercent: 2.5, members: level2.map((u) => mapMember(u, 2)) },
         { level: 3, ratePercent: 2, members: level3.map((u) => mapMember(u, 3)) },
       ],
     };
