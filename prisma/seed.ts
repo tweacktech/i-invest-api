@@ -115,11 +115,11 @@ async function main() {
 
   // ─── INVESTMENT PACKAGES ──────────────────────────────────────────────────
   const packages = [
-    { slug: 'smart-start',    name: 'Smart Start',    description: 'Beginner investment package',                     dailyYieldPercent: '2',   maturityDays: 90, minAmount: '5000',   maxAmount: '100000',  price: '5000',   firstTimeBonus: '100'  },
-    { slug: 'starter-growth', name: 'Starter Growth', description: 'Entry-level investment plan with stable returns',  dailyYieldPercent: '3',   maturityDays: 90, minAmount: '14000',  maxAmount: '500000',  price: '14000',  firstTimeBonus: '300'  },
-    { slug: 'investor-plus',  name: 'Investor Plus',  description: 'Balanced plan for growing capital',               dailyYieldPercent: '3',   maturityDays: 90, minAmount: '50000',  maxAmount: '1000000', price: '50000',  firstTimeBonus: '750'  },
-    { slug: 'wealth-builder', name: 'Wealth Builder', description: 'Mid-tier investment package with enhanced yield',  dailyYieldPercent: '3.5', maturityDays: 90, minAmount: '120000', maxAmount: '3000000', price: '120000', firstTimeBonus: '1500' },
-    { slug: 'elite-capital',  name: 'Elite Capital',  description: 'Premium investment package for larger portfolios', dailyYieldPercent: '3.5', maturityDays: 90, minAmount: '300000', maxAmount: '5000000', price: '300000', firstTimeBonus: '3000' },
+    { slug: 'smart-start',    name: 'Smart Start',    description: 'Beginner investment package',                     dailyYieldPercent: '2',   maturityDays: 90, minAmount: '9000',   maxAmount: '100000',  price: '9000',   firstTimeBonus: '100'  },
+    { slug: 'starter-growth', name: 'Starter Growth', description: 'Entry-level investment plan with stable returns',  dailyYieldPercent: '2.5',   maturityDays: 90, minAmount: '14000',  maxAmount: '500000',  price: '14000',  firstTimeBonus: '300'  },
+    { slug: 'investor-plus',  name: 'Investor Plus',  description: 'Balanced plan for growing capital',               dailyYieldPercent: '2.6',   maturityDays: 90, minAmount: '50000',  maxAmount: '1000000', price: '50000',  firstTimeBonus: '750'  },
+    { slug: 'wealth-builder', name: 'Wealth Builder', description: 'Mid-tier investment package with enhanced yield',  dailyYieldPercent: '3.3', maturityDays: 90, minAmount: '120000', maxAmount: '3000000', price: '120000', firstTimeBonus: '1500' },
+    { slug: 'elite-capital',  name: 'Elite Capital',  description: 'Premium investment package for larger portfolios', dailyYieldPercent: '3.4', maturityDays: 90, minAmount: '300000', maxAmount: '5000000', price: '300000', firstTimeBonus: '3000' },
   ];
   for (const { slug, ...fields } of packages) {
     await prisma.investmentPackage.upsert({
@@ -141,8 +141,8 @@ async function main() {
   });
   await prisma.dailyTask.upsert({
     where:  { id: 'seed-follow-instagram' },
-    update: { title: 'Follow us on Instagram', youtubeUrl: '', watchSeconds: 0, rewardAmount: '30', sortOrder: 1, isActive: true },
-    create: { id: 'seed-follow-instagram', title: 'Follow us on Instagram', youtubeUrl: '', watchSeconds: 0, rewardAmount: '30', sortOrder: 1, isActive: true },
+    update: { title: 'Follow us on Instagram', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', watchSeconds: 0, rewardAmount: '30', sortOrder: 1, isActive: true },
+    create: { id: 'seed-follow-instagram', title: 'Follow us on Instagram', youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', watchSeconds: 0, rewardAmount: '30', sortOrder: 1, isActive: true },
   });
   console.log('✅ 2 daily tasks');
 
