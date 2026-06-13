@@ -32,7 +32,7 @@ export class WalletService {
   //   });
   // }
   async getTransactions( userId: string,type?: WalletTxnType, days?: string ) {
-    const wallet = await this.prisma.wallet.findUnique({ where: { userId, }, );
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
   
     if (!wallet) {
       throw new NotFoundException(
