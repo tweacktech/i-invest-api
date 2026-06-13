@@ -10,7 +10,12 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 
-type AuthenticatedRequest = Request & { user?: { sub: string; phoneNumber: string } };
+type AuthenticatedRequest = Request & {
+  user?: {
+    sub: string;
+    phoneNumber: string;
+  };
+};
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -20,42 +25,75 @@ export class JwtGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const request =
+      context.switchToHttp().getRequest<AuthenticatedRequest>();
+
     const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) throw new UnauthorizedException('Authentication required | logout and login again');
-    // if (!authHeader?.startsWith('Bearer ')) throw new UnauthorizedException('Missing bearer token');
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedException({
+        message: 'Session expired',
+        redirectTo: '/login',
+      });
+    }
 
     const token = authHeader.replace('Bearer ', '').trim();
-    let payload: { sub: string; phoneNumber: string };
+
+    let payload: {
+      sub: string;
+      phoneNumber: string;
+    };
+
     try {
-      payload = (await this.jwtService.verifyAsync(token)) as {
-        sub: string;
-        phoneNumber: string;
-      };
+      payload = await this.jwtService.verifyAsync(token);
     } catch {
-      throw new UnauthorizedException('Session expired. Please log in again.');
+      throw new UnauthorizedException({
+        message: 'Please log in again.',
+        redirectTo: '/login',
+      });
     }
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, accountStatus: true },
+      select: {
+        id: true,
+        accountStatus: true,
+      },
     });
+
     if (!user) {
-      throw new UnauthorizedException('Account not found. Please log out and sign in again.');
+      throw new UnauthorizedException({
+        message: 'Account not found.',
+        redirectTo: '/login',
+      });
     }
+
     if (user.accountStatus === AccountStatus.BANNED) {
       throw new ForbiddenException('Your account has been banned.');
     }
+
     if (user.accountStatus === AccountStatus.SUSPENDED) {
-      throw new ForbiddenException('Your account has been suspended.');
+      throw new ForbiddenException(
+        'Your account has been suspended.',
+      );
     }
 
-    const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
+    const wallet = await this.prisma.wallet.findUnique({
+      where: {
+        userId: user.id,
+      },
+    });
+
     if (!wallet) {
-      await this.prisma.wallet.create({ data: { userId: user.id } });
+      await this.prisma.wallet.create({
+        data: {
+          userId: user.id,
+        },
+      });
     }
 
     request.user = payload;
+
     return true;
   }
 }

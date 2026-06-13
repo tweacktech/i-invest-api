@@ -23,6 +23,7 @@ export class InvestmentInterestJob {
   private async runBatch(label: string) {
     try {
       const { processed, skipped } = await this.investments.runDailyInterestBatch();
+
       if (processed > 0 || skipped > 0) {
         this.log.log(
           `[${label}] Investment interest: ${processed} credited, ${skipped} skipped (welfare/weekend/holiday/unpaid)`,

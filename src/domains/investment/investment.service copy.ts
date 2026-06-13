@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InvestmentStatus, Prisma, WalletTxnType } from '@prisma/client';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -35,6 +31,7 @@ export class InvestmentService {
   }
 
   async purchase(userId: string, packageId: string, amountRaw?: string) {
+    console.log('started purchest');
     const pkg = await this.prisma.investmentPackage.findFirst({
       where: { id: packageId, isActive: true },
     });
@@ -45,10 +42,7 @@ export class InvestmentService {
       principal = new Prisma.Decimal(amountRaw);
     }
 
-    if (
-      principal.lessThan(pkg.minAmount) ||
-      principal.greaterThan(pkg.maxAmount)
-    ) {
+    if (principal.lessThan(pkg.minAmount) || principal.greaterThan(pkg.maxAmount)) {
       throw new BadRequestException(
         `Amount must be between ${pkg.minAmount.toString()} and ${pkg.maxAmount.toString()}`,
       );
@@ -62,7 +56,6 @@ export class InvestmentService {
     const maturityDate = new Date();
     maturityDate.setDate(maturityDate.getDate() + pkg.maturityDays);
 
-    // Deduct from available, lock in frozen while investment is running
     await this.wallet.applyBalanceChange(
       userId,
       WalletTxnType.INVESTMENT_PURCHASE,
@@ -90,16 +83,12 @@ export class InvestmentService {
       include: { package: true },
     });
 
-    await this.referral.distributeOnInvestment(
-      userId,
-      investment.id,
-      principal,
-    );
+    await this.referral.distributeOnInvestment(userId, investment.id, principal);
 
     return investment;
   }
 
-  /** First payout window: next UTC midnight */
+  /** First payout window: next UTC midnight (avoids same-second accrual). */
   private nextInterestDueFrom(from: Date): Date {
     const d = new Date(from);
     d.setUTCDate(d.getUTCDate() + 1);
@@ -107,17 +96,12 @@ export class InvestmentService {
     return d;
   }
 
-  async runDailyInterestBatch(): Promise<{
-    processed: number;
-    skipped: number;
-  }> {
+  /** Daily cron: credit daily yield to wallet; on last day release principal from frozen. */
+  async runDailyInterestBatch(): Promise<{ processed: number; skipped: number }> {
     const now = new Date();
     const config = await this.welfare.getConfig();
 
-    if (
-      config.enabled &&
-      (isWeekendUTC(now) || isHolidayUTC(now, config.holidayDates))
-    ) {
+    if (config.enabled && (isWeekendUTC(now) || isHolidayUTC(now, config.holidayDates))) {
       return { processed: 0, skipped: 0 };
     }
 
@@ -128,31 +112,21 @@ export class InvestmentService {
       },
       include: { package: true },
     });
-
     let processed = 0;
     let skipped = 0;
-
     for (const inv of rows) {
       const accrual = await this.welfare.canAccrueInvestment(inv.userId, now);
-
       if (!accrual.ok) {
         skipped += 1;
         continue;
       }
 
       const pkg = inv.package;
-      const interest = inv.principalAmount
-        .mul(inv.dailyYieldPercent)
-        .div(100);
-
-      const nextDay = inv.nextInterestDate
-        ? this.nextInterestDueFrom(inv.nextInterestDate)
-        : null;
-
-      const daysElapsed    = inv.daysElapsed + 1;
+      const interest = inv.principalAmount.mul(inv.dailyYieldPercent).div(100);
+      const nextDay = inv.nextInterestDate ? this.nextInterestDueFrom(inv.nextInterestDate) : null;
+      const daysElapsed = inv.daysElapsed + 1;
       const maturityReached = daysElapsed >= pkg.maturityDays;
 
-      // Credit daily interest to available balance every day
       await this.wallet.applyBalanceChange(
         inv.userId,
         WalletTxnType.INTEREST_ACCRUAL,
@@ -165,7 +139,6 @@ export class InvestmentService {
       );
 
       if (!maturityReached) {
-        // Still running — just advance the counter and next due date
         await this.prisma.investment.update({
           where: { id: inv.id },
           data: {
@@ -175,8 +148,6 @@ export class InvestmentService {
           },
         });
       } else {
-        // ── MATURITY ─────────────────────────────────────────────────────
-        // Mark investment as matured
         await this.prisma.investment.update({
           where: { id: inv.id },
           data: {
@@ -186,39 +157,39 @@ export class InvestmentService {
             nextInterestDate: null,
           },
         });
+        // await this.wallet.applyBalanceChange(
+        //   inv.userId,
+        //   WalletTxnType.INVESTMENT_MATURITY,
+        //   { available: inv.principalAmount, frozen: inv.principalAmount.mul(-1) },
+        //   {
+        //     description: `Investment matured — ${pkg.name} principal`,
+        //     referenceType: 'investment',
+        //     referenceId: inv.id,
+        //   },
+        // );
 
-        // Principal lifecycle on maturity:
-        //   frozen    → -principal  (unlock the frozen capital)
-        //   available → unchanged   (principal does NOT return to spendable balance)
-        //   doneAmount→ +principal  (principal is recorded as "completed capital")
-        //
-        // Think of doneAmount as a cumulative ledger of how much principal
-        // has been fully cycled — it never decreases and is never spendable.
         await this.wallet.applyBalanceChange(
           inv.userId,
           WalletTxnType.INVESTMENT_MATURITY,
           {
-            frozen:     inv.principalAmount.mul(-1), // release from frozen
-            doneAmount: inv.principalAmount,          // archive into doneAmount
+            available: inv.principalAmount,
+            frozen: inv.principalAmount.mul(-1),
+            doneAmount: inv.principalAmount,
           },
           {
-            description: `Investment matured — ${pkg.name} completed`,
+            description: `Investment matured — ${pkg.name} principal moved to completed`,
             referenceType: 'investment',
             referenceId: inv.id,
           },
         );
       }
-
       processed += 1;
     }
-
     return { processed, skipped };
   }
 
   adminListPackages() {
-    return this.prisma.investmentPackage.findMany({
-      orderBy: { price: 'asc' },
-    });
+    return this.prisma.investmentPackage.findMany({ orderBy: { price: 'asc' } });
   }
 
   adminCreatePackage(body: {
@@ -265,25 +236,22 @@ export class InvestmentService {
     }>,
   ) {
     const data: Prisma.InvestmentPackageUpdateInput = {};
-
-    if (body.name !== undefined)               data.name = body.name;
-    if (body.slug !== undefined)               data.slug = body.slug;
-    if (body.description !== undefined)        data.description = body.description;
-    if (body.dailyYieldPercent !== undefined)  data.dailyYieldPercent = new Prisma.Decimal(body.dailyYieldPercent);
-    if (body.maturityDays !== undefined)       data.maturityDays = body.maturityDays;
-    if (body.minAmount !== undefined)          data.minAmount = new Prisma.Decimal(body.minAmount);
-    if (body.maxAmount !== undefined)          data.maxAmount = new Prisma.Decimal(body.maxAmount);
-    if (body.price !== undefined)              data.price = new Prisma.Decimal(body.price);
-    if (body.firstTimeBonus !== undefined)     data.firstTimeBonus = new Prisma.Decimal(body.firstTimeBonus);
-    if (body.isActive !== undefined)           data.isActive = body.isActive;
-
+    if (body.name !== undefined) data.name = body.name;
+    if (body.slug !== undefined) data.slug = body.slug;
+    if (body.description !== undefined) data.description = body.description;
+    if (body.dailyYieldPercent !== undefined) {
+      data.dailyYieldPercent = new Prisma.Decimal(body.dailyYieldPercent);
+    }
+    if (body.maturityDays !== undefined) data.maturityDays = body.maturityDays;
+    if (body.minAmount !== undefined) data.minAmount = new Prisma.Decimal(body.minAmount);
+    if (body.maxAmount !== undefined) data.maxAmount = new Prisma.Decimal(body.maxAmount);
+    if (body.price !== undefined) data.price = new Prisma.Decimal(body.price);
+    if (body.firstTimeBonus !== undefined) data.firstTimeBonus = new Prisma.Decimal(body.firstTimeBonus);
+    if (body.isActive !== undefined) data.isActive = body.isActive;
     return this.prisma.investmentPackage.update({ where: { id }, data });
   }
 
   adminDeactivatePackage(id: string) {
-    return this.prisma.investmentPackage.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    return this.prisma.investmentPackage.update({ where: { id }, data: { isActive: false } });
   }
 }
