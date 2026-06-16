@@ -1,3 +1,4 @@
+// deposit-method.controller.ts
 import {
   Body,
   Controller,
@@ -17,7 +18,7 @@ import {
 } from './dto/deposit-method.dto';
 import { JwtGuard } from '../auth/jwt.guard';
 
-@Controller('deposit-methods')
+@Controller('deposit-method') // Changed to match frontend
 export class DepositMethodController {
   constructor(private readonly service: DepositMethodService) {}
 
@@ -34,7 +35,6 @@ export class DepositMethodController {
     return this.service.findAll(enabledOnly === 'true');
   }
 
-  /** Must be before :id routes */
   @UseGuards(JwtGuard)
   @Post('reorder')
   reorder(@Body() items: ReorderDepositMethodDto[]) {
@@ -62,7 +62,6 @@ export class DepositMethodController {
   @UseGuards(JwtGuard)
   @Patch(':id/toggle')
   toggle(@Param('id') id: string) {
-    console.log('yess');
     return this.service.toggleEnabled(id);
   }
 

@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -190,6 +191,42 @@ export class StaffController {
     }>,
   ) {
     return this.prisma.depositMethod.update({ where: { id }, data: body });
+  }
+  // Add these to StaffController if using Option B
+  @Patch('deposit-methods/:id/toggle')
+  async toggleDepositMethod(@Param('id') id: string) {
+    const method = await this.prisma.depositMethod.findUnique({ where: { id } });
+    if (!method) throw new BadRequestException('Deposit method not found');
+    return this.prisma.depositMethod.update({
+      where: { id },
+      data: { isEnabled: !method.isEnabled },
+    });
+  }
+
+  @Delete('deposit-methods/:id')
+  async deleteDepositMethod(@Param('id') id: string) {
+    // Check if method is used in any recharge requests
+    const used = await this.prisma.rechargeRequest.findFirst({
+      where: { depositMethodId: id },
+    });
+    if (used) {
+      throw new BadRequestException('Cannot delete method used in recharge requests');
+    }
+    return this.prisma.depositMethod.delete({ where: { id } });
+  }
+
+  @Post('deposit-methods/reorder')
+  async reorderDepositMethods(@Body() items: { id: string; sortOrder: number }[]) {
+    // Update each method's sort order
+    await Promise.all(
+      items.map((item) =>
+        this.prisma.depositMethod.update({
+          where: { id: item.id },
+          data: { sortOrder: item.sortOrder },
+        })
+      )
+    );
+    return { success: true };
   }
 
   @Get('catalog-banks')
