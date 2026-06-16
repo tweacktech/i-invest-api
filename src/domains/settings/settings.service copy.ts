@@ -1,8 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { hash, compare } from 'bcryptjs';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { hash } from 'bcryptjs';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { UpsertBankDto } from './dto/upsert-bank.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class SettingsService {
@@ -84,55 +83,6 @@ export class SettingsService {
       where: { userId },
       create: { userId, withdrawalPinHash: hashed },
       update: { withdrawalPinHash: hashed },
-    });
-  }
-
-  async changePassword(userId: string, dto: ChangePasswordDto) {
-    // Validate userId
-    if (!userId) {
-      throw new BadRequestException('User ID is required');
-    }
-
-    const { currentPassword, newPassword } = dto;
-
-    // Get user with password hash
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        phoneNumber: true,
-        passwordHash: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Verify current password
-    const isPasswordValid = await compare(currentPassword, user.passwordHash);
-    if (!isPasswordValid) {
-      throw new BadRequestException('Current password is incorrect');
-    }
-
-    // Check if new password is different from current
-    const isSamePassword = await compare(newPassword, user.passwordHash);
-    if (isSamePassword) {
-      throw new BadRequestException('New password cannot be the same as current password');
-    }
-
-    // Hash new password
-    const hashedPassword = await hash(newPassword, 10);
-
-    // Update password
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash: hashedPassword },
-      select: {
-        id: true,
-        phoneNumber: true,
-        updatedAt: true,
-      },
     });
   }
 }
