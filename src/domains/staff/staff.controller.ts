@@ -203,6 +203,58 @@ export class StaffController {
     });
   }
 
+  // Add this to your StaffController
+  @Patch('deposit-methods/:id')
+  async patchDepositMethod(
+    @Param('id') id: string,
+    @Body()
+    body: Partial<{
+      code: string;
+      label: string;
+      bankName: string;
+      accountName: string;
+      accountNumber: string;
+      isEnabled: boolean;
+      sortOrder: number;
+    }>,
+  ) {
+    // Check if method exists
+    const existing = await this.prisma.depositMethod.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new BadRequestException('Deposit method not found');
+    }
+
+    // If code is being updated, check for duplicates
+    if (body.code) {
+      const duplicate = await this.prisma.depositMethod.findFirst({
+        where: {
+          code: body.code.trim().toUpperCase(),
+          id: { not: id },
+        },
+      });
+      if (duplicate) {
+        throw new BadRequestException(`Code "${body.code}" already exists`);
+      }
+    }
+
+    // Build update data object
+    const updateData: any = {};
+    if (body.code !== undefined) updateData.code = body.code.trim().toUpperCase();
+    if (body.label !== undefined) updateData.label = body.label.trim();
+    if (body.bankName !== undefined) updateData.bankName = body.bankName.trim();
+    if (body.accountName !== undefined) updateData.accountName = body.accountName.trim();
+    if (body.accountNumber !== undefined) updateData.accountNumber = body.accountNumber.trim();
+    if (body.isEnabled !== undefined) updateData.isEnabled = body.isEnabled;
+    if (body.sortOrder !== undefined) updateData.sortOrder = body.sortOrder;
+
+    return this.prisma.depositMethod.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
   @Delete('deposit-methods/:id')
   async deleteDepositMethod(@Param('id') id: string) {
     // Check if method is used in any recharge requests
